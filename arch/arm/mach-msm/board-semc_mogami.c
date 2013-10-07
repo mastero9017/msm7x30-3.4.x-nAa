@@ -185,12 +185,18 @@
 #define GPIO_MSM_MDDI_XRES		157
 #endif
 
-#define CYPRESS_TOUCH_GPIO_RESET	40
-#define CYPRESS_TOUCH_GPIO_IRQ		42
-#ifdef CONFIG_TOUCHSCREEN_CLEARPAD
-#define SYNAPTICS_TOUCH_GPIO_IRQ	42
+#if defined(CONFIG_TOUCHSCREEN_CY8CTMA300_SPI) || \
+	defined(CONFIG_TOUCHSCREEN_CYTTSP_SPI) || \
+	defined(CONFIG_TOUCHSCREEN_CLEARPAD)
+#define TOUCH_GPIO_IRQ			42
 #endif
+#if defined(CONFIG_TOUCHSCREEN_CY8CTMA300_SPI) || \
+	defined(CONFIG_TOUCHSCREEN_CYTTSP_SPI)
+#define CYPRESS_TOUCH_GPIO_RESET	40
+#endif
+#ifdef CONFIG_TOUCHSCREEN_CY8CTMA300_SPI
 #define CYPRESS_TOUCH_GPIO_SPI_CS	46
+#endif
 
 #ifdef CONFIG_FB_MSM_HDPI
 #define MSM_PMEM_SF_SIZE  0x2500000
@@ -1999,43 +2005,77 @@ static struct platform_device mddi_auo_hvga_display_device = {
 #endif   /* CONFIG_FB_MSM_MDDI_AUO_HVGA_LCD  */
 
 #if defined(CONFIG_TOUCHSCREEN_CY8CTMA300_SPI) || \
-	defined(CONFIG_TOUCHSCREEN_CYTTSP_SPI)
-struct msm_gpio ttsp_gpio_cfg_data[] = {
-	{ GPIO_CFG(42, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA),
-		"ttsp_irq" },
+	defined(CONFIG_TOUCHSCREEN_CYTTSP_SPI) || \
+	defined(CONFIG_TOUCHSCREEN_CLEARPAD)
+static struct msm_gpio touch_gpio_config_data[] = {
+	{ GPIO_CFG(TOUCH_GPIO_IRQ, 0, GPIO_CFG_INPUT,
+		   GPIO_CFG_PULL_UP, GPIO_CFG_2MA), "touch_irq" },
 };
 #endif
 
-#ifdef CONFIG_TOUCHSCREEN_CY8CTMA300_SPI
-static int cypress_touch_gpio_init(void);
-static int cypress_touch_spi_cs_set(bool val);
+#if defined(CONFIG_TOUCHSCREEN_CY8CTMA300_SPI) || \
+	defined(CONFIG_TOUCHSCREEN_CLEARPAD)
+#ifdef CONFIG_MSM_UNDERVOLT_TOUCH
+#define TOUCH_VDD_VOLTAGE 2800000
+#else
+#define TOUCH_VDD_VOLTAGE 3050000
+#endif
 
-static struct cypress_touch_platform_data cypress_touch_data = {
-	.x_max = CONFIG_CY8CTMA300_SPI_MAX_X,
-	.y_max = CONFIG_CY8CTMA300_SPI_MAX_Y,
-	.z_max = CONFIG_CY8CTMA300_SPI_MAX_Z,
-	.width_major = CONFIG_CY8CTMA300_SPI_WIDTH_MAJOR,
-	.gpio_init = cypress_touch_gpio_init,
-	.gpio_irq_pin = CYPRESS_TOUCH_GPIO_IRQ,
-	.gpio_reset_pin = CYPRESS_TOUCH_GPIO_RESET,
-	.spi_cs_set = cypress_touch_spi_cs_set,
-};
+static struct regulator *vreg_touch_vdd;
 
-static int cypress_touch_gpio_init(void)
+static int touch_vreg_configure(int enable)
 {
-	int rc;
+	int rc = 0;
 
-	msleep(10);
+	vreg_touch_vdd = regulator_get(NULL, "gp13");
+	if (IS_ERR(vreg_touch_vdd)) {
+		pr_err("%s: get vdd failed\n", __func__);
+		return -ENODEV;
+	}
 
-	rc = msm_gpios_enable(ttsp_gpio_cfg_data,
-				ARRAY_SIZE(ttsp_gpio_cfg_data));
-	if (rc)
-		return rc;
-
-	gpio_set_value(CYPRESS_TOUCH_GPIO_RESET, 1);
-	return 0;
+	if (enable) {
+		rc = regulator_set_voltage(vreg_touch_vdd, TOUCH_VDD_VOLTAGE, TOUCH_VDD_VOLTAGE);
+		if (rc) {
+			pr_err("%s: set voltage failed, rc=%d\n", __func__, rc);
+			goto touch_vreg_configure_err;
+		}
+		rc = regulator_enable(vreg_touch_vdd);
+		if (rc) {
+			pr_err("%s: enable vdd failed, rc=%d\n", __func__, rc);
+			goto touch_vreg_configure_err;
+		}
+	} else {
+		rc = regulator_set_voltage(vreg_touch_vdd, 0, TOUCH_VDD_VOLTAGE);
+		if (rc) {
+			pr_err("%s: set voltage failed, rc=%d\n", __func__, rc);
+			goto touch_vreg_configure_err;
+		}
+		rc = regulator_disable(vreg_touch_vdd);
+		if (rc)
+			pr_err("%s: disable vdd failed, rc=%d\n",
+								__func__, rc);
+	}
+	return rc;
+touch_vreg_configure_err:
+	regulator_put(vreg_touch_vdd);
+	return rc;
 }
 
+static int touch_gpio_configure(int enable)
+{
+	int rc = 0;
+
+	if (enable)
+		rc = msm_gpios_request_enable(touch_gpio_config_data,
+				ARRAY_SIZE(touch_gpio_config_data));
+	else
+		msm_gpios_free(touch_gpio_config_data,
+				ARRAY_SIZE(touch_gpio_config_data));
+	return rc;
+}
+#endif
+
+#ifdef CONFIG_TOUCHSCREEN_CY8CTMA300_SPI
 static int cypress_touch_spi_cs_set(bool val)
 {
 	int rc = 0;
@@ -2062,6 +2102,18 @@ static int cypress_touch_spi_cs_set(bool val)
 	}
 	return rc;
 }
+
+static struct cypress_touch_platform_data cypress_touch_data = {
+	.x_max = 479,
+	.y_max = 853,
+	.z_max = 255,
+	.width_major = 40,
+	.vreg_configure = touch_vreg_configure,
+	.gpio_configure = touch_gpio_configure,
+	.gpio_irq_pin = TOUCH_GPIO_IRQ,
+	.gpio_reset_pin = CYPRESS_TOUCH_GPIO_RESET,
+	.spi_cs_set = cypress_touch_spi_cs_set,
+};
 #endif /* CONFIG_TOUCHSCREEN_CY8CTMA300_SPI */
 
 #ifdef CONFIG_TOUCHSCREEN_CYTTSP_SPI
@@ -2092,13 +2144,13 @@ int cyttsp_init(int on)
 {
 	int rc = -1;
 	if (on) {
-		if (gpio_request(CYPRESS_TOUCH_GPIO_IRQ, "ttsp_irq"))
+		if (gpio_request(TOUCH_GPIO_IRQ, "ttsp_irq"))
 			goto ttsp_irq_err;
 		if (gpio_request(CYPRESS_TOUCH_GPIO_RESET, "ttsp_reset"))
 			goto ttsp_reset_err;
 
-		rc = msm_gpios_enable(ttsp_gpio_cfg_data,
-					ARRAY_SIZE(ttsp_gpio_cfg_data));
+		rc = msm_gpios_enable(touch_gpio_config_data,
+					ARRAY_SIZE(touch_gpio_config_data));
 		if (rc)
 			goto ttsp_gpio_cfg_err;
 		return 0;
@@ -2108,7 +2160,7 @@ int cyttsp_init(int on)
 ttsp_gpio_cfg_err:
 	gpio_free(CYPRESS_TOUCH_GPIO_RESET);
 ttsp_reset_err:
-	gpio_free(CYPRESS_TOUCH_GPIO_IRQ);
+	gpio_free(TOUCH_GPIO_IRQ);
 ttsp_irq_err:
 	return rc;
 }
@@ -2117,22 +2169,22 @@ int cyttsp_wakeup(void)
 {
 	int ret;
 
-	ret = gpio_direction_output(CYPRESS_TOUCH_GPIO_IRQ, 0);
+	ret = gpio_direction_output(TOUCH_GPIO_IRQ, 0);
 	if (ret) {
 		printk(KERN_ERR "%s: Failed to request gpio_direction_output\n",
 		__func__);
                 return ret;
 	}
 	msleep(50);
-	gpio_set_value(CYPRESS_TOUCH_GPIO_IRQ, 0);
+	gpio_set_value(TOUCH_GPIO_IRQ, 0);
 	msleep(1);
-	gpio_set_value(CYPRESS_TOUCH_GPIO_IRQ, 1);
+	gpio_set_value(TOUCH_GPIO_IRQ, 1);
 	udelay(100);
-	gpio_set_value(CYPRESS_TOUCH_GPIO_IRQ, 0);
+	gpio_set_value(TOUCH_GPIO_IRQ, 0);
 	msleep(1);
-	gpio_set_value(CYPRESS_TOUCH_GPIO_IRQ, 1);
+	gpio_set_value(TOUCH_GPIO_IRQ, 1);
 	printk(KERN_INFO "%s: wakeup\n", __func__);
-	ret = gpio_direction_input(CYPRESS_TOUCH_GPIO_IRQ);
+	ret = gpio_direction_input(TOUCH_GPIO_IRQ);
 	if (ret) {
 		printk(KERN_ERR "%s: Failed to request gpio_direction_input\n",
 		__func__);
@@ -2196,70 +2248,6 @@ int cyttsp_key_rpc_callback(u8 data[], int size)
 #endif /* CONFIG_TOUCHSCREEN_CYTTSP_SPI */
 
 #ifdef CONFIG_TOUCHSCREEN_CLEARPAD
-#ifdef CONFIG_MSM_UNDERVOLT_TOUCH
-#define CLEARPAD_VDD_VOLTAGE 2800000
-#else
-#define CLEARPAD_VDD_VOLTAGE 3050000
-#endif
-
-static struct regulator *vreg_touch_vdd;
-
-static int clearpad_vreg_configure(int enable)
-{
-	int rc = 0;
-
-	vreg_touch_vdd = regulator_get(NULL, "gp13");
-	if (IS_ERR(vreg_touch_vdd)) {
-		pr_err("%s: get vdd failed\n", __func__);
-		return -ENODEV;
-	}
-
-	if (enable) {
-		rc = regulator_set_voltage(vreg_touch_vdd, CLEARPAD_VDD_VOLTAGE, CLEARPAD_VDD_VOLTAGE);
-		if (rc) {
-			pr_err("%s: set voltage failed, rc=%d\n", __func__, rc);
-			goto clearpad_vreg_configure_err;
-		}
-		rc = regulator_enable(vreg_touch_vdd);
-		if (rc) {
-			pr_err("%s: enable vdd failed, rc=%d\n", __func__, rc);
-			goto clearpad_vreg_configure_err;
-		}
-	} else {
-		rc = regulator_set_voltage(vreg_touch_vdd, 0, CLEARPAD_VDD_VOLTAGE);
-		if (rc) {
-			pr_err("%s: set voltage failed, rc=%d\n", __func__, rc);
-			goto clearpad_vreg_configure_err;
-		}
-		rc = regulator_disable(vreg_touch_vdd);
-		if (rc)
-			pr_err("%s: disable vdd failed, rc=%d\n",
-								__func__, rc);
-	}
-	return rc;
-clearpad_vreg_configure_err:
-	regulator_put(vreg_touch_vdd);
-	return rc;
-}
-
-static struct msm_gpio clearpad_gpio_config_data[] = {
-	{ GPIO_CFG(SYNAPTICS_TOUCH_GPIO_IRQ, 0, GPIO_CFG_INPUT,
-		   GPIO_CFG_PULL_UP, GPIO_CFG_2MA), "clearpad3000_irq" },
-};
-
-static int clearpad_gpio_configure(int enable)
-{
-	int rc = 0;
-
-	if (enable)
-		rc = msm_gpios_request_enable(clearpad_gpio_config_data,
-				ARRAY_SIZE(clearpad_gpio_config_data));
-	else
-		msm_gpios_free(clearpad_gpio_config_data,
-				ARRAY_SIZE(clearpad_gpio_config_data));
-	return rc;
-}
-
 static struct synaptics_button synaptics_menu_key = {
 	.type = EV_KEY,
 	.code = KEY_MENU,
@@ -2281,10 +2269,10 @@ static struct synaptics_funcarea clearpad_funcarea_array[] = {
 };
 
 static struct clearpad_platform_data clearpad_platform_data = {
-	.irq = MSM_GPIO_TO_INT(SYNAPTICS_TOUCH_GPIO_IRQ),
+	.irq = MSM_GPIO_TO_INT(TOUCH_GPIO_IRQ),
 	.funcarea = clearpad_funcarea_array,
-	.vreg_configure = clearpad_vreg_configure,
-	.gpio_configure = clearpad_gpio_configure,
+	.vreg_configure = touch_vreg_configure,
+	.gpio_configure = touch_gpio_configure,
 };
 #endif
 
@@ -2736,7 +2724,7 @@ static struct spi_board_info msm_spi_board_info[] __initdata = {
 		.bus_num	= 0,
 		.chip_select	= 0,
 		.max_speed_hz	= 1 * 1000 * 1000,
-		.irq		= MSM_GPIO_TO_INT(CYPRESS_TOUCH_GPIO_IRQ),
+		.irq		= MSM_GPIO_TO_INT(TOUCH_GPIO_IRQ),
 	},
 #endif
 #ifdef CONFIG_TOUCHSCREEN_CYTTSP_SPI
@@ -2747,7 +2735,7 @@ static struct spi_board_info msm_spi_board_info[] __initdata = {
 		.bus_num	= 0,
 		.chip_select	= 0,
 		.max_speed_hz	= 1 * 1000 * 1000,
-		.irq		= MSM_GPIO_TO_INT(CYPRESS_TOUCH_GPIO_IRQ),
+		.irq		= MSM_GPIO_TO_INT(TOUCH_GPIO_IRQ),
 	},
 #endif
 };
@@ -4115,7 +4103,8 @@ static void __init mogami_temp_fixups(void)
 
 static void __init shared_vreg_on(void)
 {
-#ifndef CONFIG_TOUCHSCREEN_CLEARPAD
+#if !defined(CONFIG_TOUCHSCREEN_CLEARPAD) || \
+	defined(CONFIG_TOUCHSCREEN_CY8CTMA300_SPI)
 #ifdef CONFIG_MSM_UNDERVOLT_TOUCH
 	vreg_helper_on("gp13", 2800); /* ldo20 - Touch */
 #else
@@ -4293,9 +4282,6 @@ static void __init msm7x30_init(void)
 #endif
 	hw_id_class_init();
 	shared_vreg_on();
-#ifdef CONFIG_TOUCHSCREEN_CY8CTMA300_SPI
-	cypress_touch_gpio_init();
-#endif /* CONFIG_TOUCHSCREEN_CY8CTMA300_SPI */
 
 	i2c_register_board_info(0, msm_i2c_board_info,
 			ARRAY_SIZE(msm_i2c_board_info));
