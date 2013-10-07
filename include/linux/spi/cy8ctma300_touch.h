@@ -10,7 +10,8 @@ struct cypress_touch_platform_data {
 	__u16 y_max;
 	__u16 z_max;
 	__u16 width_major;
-	int (*gpio_init)(void);
+	int (*vreg_configure)(int);
+	int (*gpio_configure)(int);
 	__u8 esd_mode;
 	int (*spi_cs_set)(bool val);
 };

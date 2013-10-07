@@ -922,37 +922,6 @@ config TOUCHSCREEN_CY8CTMA300_SPI
 	  To compile this driver as a module, choose M here: the
 	  module will be called cy8ctma300_spi.
 
-config CY8CTMA300_SPI_MAX_X
-	int "The maximum x coordinate of Touchscreen"
-	default "480"
-	depends on TOUCHSCREEN_CY8CTMA300_SPI
-	help
-	  The default value is 480. Change this according to the LCD
-	  screen resolution.
-
-config CY8CTMA300_SPI_MAX_Y
-	int "The maximum y coordinate of Touchscreen"
-	default "854"
-	depends on TOUCHSCREEN_CY8CTMA300_SPI
-	help
-	  The default value is 854. Change this according to the LCD
-	  screen resolution.
-
-config CY8CTMA300_SPI_MAX_Z
-	int "The maximum z value (pressure) of Touchscreen"
-	default "255"
-	depends on TOUCHSCREEN_CY8CTMA300_SPI
-	help
-	  The default value is 255 (the maximum value).
-
-config CY8CTMA300_SPI_WIDTH_MAJOR
-	int "Pseudo value for ABS_MT_WIDTH_MAJOR reporting"
-	default "10"
-	depends on TOUCHSCREEN_CY8CTMA300_SPI
-	help
-	  The device doesn't have actual tool width.
-	  This pseudo value is used to report ABS_MT_WIDTH_MAJOR.
-
 config TOUCHSCREEN_CYTTSP_I2C
 	default n
 	tristate "Cypress TTSP i2c touchscreen"

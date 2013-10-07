@@ -3,6 +3,7 @@
  * Copyright (C) [2010] Sony Ericsson Mobile Communications AB.
  *
  * Author: Kenji Tokutake <Kenji.Tokutake@SonyEricsson.com>
+ * Adapted for SEMC 2011 devices by Michael Bestas (mikeioannina@gmail.com)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2, as
@@ -1838,11 +1839,22 @@ static int cy8ctma300_touch_probe(struct spi_device *spi)
 		return -ENODEV;
 	}
 
-	if (pdata && pdata->gpio_init) {
-		err = pdata->gpio_init();
-		if (err > 0)
+	if (pdata->vreg_configure) {
+		err = pdata->vreg_configure(1);
+		if (err) {
+			dev_err(&spi->dev, "CY8CTMA300_TOUCH: vreg "
+						"configuration failed\n");
+			goto err_exit;
+		}
+	}
+
+	if (pdata->gpio_configure) {
+		err = pdata->gpio_configure(1);
+		if (err) {
 			dev_err(&spi->dev, "CY8CTMA300_TOUCH: gpio "
 						"configuration failed\n");
+			goto err_vreg_teardown;
+		}
 	}
 
 	/* Set up SPI */
@@ -1860,30 +1872,30 @@ static int cy8ctma300_touch_probe(struct spi_device *spi)
 
 	err = gpio_request(pdata->gpio_reset_pin, "cy8ctma300_touch_reset");
 	if (err)
-		goto err_gpio_setup;
+		goto err_gpio_teardown;
 
 	dev_dbg(&spi->dev, "%s: Requesting GPIO IRQ ownership\n", __func__);
 
 	err = gpio_request(pdata->gpio_irq_pin, "cy8ctma300_touch_irq");
 	if (err)
-		goto err_gpio_setup;
+		goto err_gpio_teardown;
 
 	dev_dbg(&spi->dev, "%s: Configuring GPIO Reset direction\n", __func__);
 
 	err = gpio_direction_output(pdata->gpio_reset_pin, 1);
 	if (err)
-		goto err_gpio_setup;
+		goto err_gpio_teardown;
 
 	dev_dbg(&spi->dev, "%s: Configuring GPIO IRQ direction\n", __func__);
 
 	err = gpio_direction_input(pdata->gpio_irq_pin);
 	if (err)
-		goto err_gpio_setup;
+		goto err_gpio_teardown;
 
 	tp = kzalloc(sizeof(struct cy8ctma300_touch), GFP_KERNEL);
 	if (!tp) {
 		err = -ENOMEM;
-		goto err_gpio_setup;
+		goto err_gpio_teardown;
 	}
 
 	dev_dbg(&spi->dev, "%s: Allocated private data\n", __func__);
@@ -2025,9 +2037,15 @@ err_cleanup_mem:
 	mutex_destroy(&tp->touch_lock);
 	mutex_destroy(&tp->s_lock);
 	kfree(tp);
-err_gpio_setup:
+err_gpio_teardown:
+	if (pdata->gpio_configure)
+		pdata->gpio_configure(0);
 	gpio_free(pdata->gpio_reset_pin);
 	gpio_free(pdata->gpio_irq_pin);
+err_vreg_teardown:
+	if (pdata->vreg_configure)
+		pdata->vreg_configure(0);
+err_exit:
 	dev_err(&spi->dev, "%s: probe() fail: %d\n", __func__, err);
 	return err;
 }
@@ -2069,6 +2087,13 @@ static int __devexit cy8ctma300_touch_remove(struct spi_device *spi)
 	free_irq(tp->spi->irq, tp);
 	mutex_destroy(&tp->touch_lock);
 	mutex_destroy(&tp->s_lock);
+
+	if (pdata->gpio_configure)
+		pdata->gpio_configure(0);
+
+	if (pdata->vreg_configure)
+		pdata->vreg_configure(0);
+
 	kfree(tp);
 	gpio_free(pdata->gpio_reset_pin);
 	gpio_free(pdata->gpio_irq_pin);
