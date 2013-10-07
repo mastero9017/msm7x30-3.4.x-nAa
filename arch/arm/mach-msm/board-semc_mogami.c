@@ -4090,21 +4090,10 @@ out3:
 
 }
 
-/*
- * Temporary place for hardware initialization until the devices in question
- * gets proper drivers
- */
-static void __init mogami_temp_fixups(void)
-{
-	gpio_set_value(46, 1);	/* SPI_CS0_N - Touch */
-	gpio_set_value(134, 1);	/* UART1DM_RFR_N - BT */
-	gpio_set_value(137, 1);	/* UART1DM_TXD - BT */
-}
-
 static void __init shared_vreg_on(void)
 {
-#if !defined(CONFIG_TOUCHSCREEN_CLEARPAD) || \
-	defined(CONFIG_TOUCHSCREEN_CY8CTMA300_SPI)
+#ifdef CONFIG_TOUCHSCREEN_CYTTSP_SPI
+	gpio_set_value(46, 1);	/* SPI_CS0_N - Touch */
 #ifdef CONFIG_MSM_UNDERVOLT_TOUCH
 	vreg_helper_on("gp13", 2800); /* ldo20 - Touch */
 #else
@@ -4112,10 +4101,12 @@ static void __init shared_vreg_on(void)
 #endif
 #endif
 	vreg_helper_on("gp4", 2600);  /* ldo10 - BMA150, AK8975B */
+#ifdef CONFIG_FB_MSM_MDDI_NOVATEK_FWVGA
 #ifdef CONFIG_MSM_UNDERVOLT_LCD
 	vreg_helper_on("gp6", 2300);  /* ldo15 - LCD */
 #else
 	vreg_helper_on("gp6", 2900);  /* ldo15 - LCD */
+#endif
 #endif
 	vreg_helper_on("gp7", 1800);  /* ldo08 - BMA150, AK8975B, LCD, Touch, HDMI */
 }
@@ -4249,7 +4240,6 @@ static void __init msm7x30_init(void)
 	platform_add_devices(msm_footswitch_devices,
 			     msm_num_footswitch_devices);
 	platform_add_devices(devices, ARRAY_SIZE(devices));
-	mogami_temp_fixups();
 #ifdef CONFIG_SEMC_CHARGER_USB_ARCH
 	semc_chg_usb_set_supplicants(semc_chg_usb_supplied_to,
 				  ARRAY_SIZE(semc_chg_usb_supplied_to));
