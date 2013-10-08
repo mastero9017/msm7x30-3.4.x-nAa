@@ -1,6 +1,7 @@
-/* /kernel/arch/arm/mach-msm/touch-iyokan.c
+/* arch/arm/mach-msm/touch-iyokan.c
  *
  * Copyright (C) [2010-2011] Sony Ericsson Mobile Communications AB.
+ * Adapted for SEMC 2011 devices by Michael Bestas (mikeioannina@gmail.com)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2, as
@@ -14,12 +15,13 @@
 
 struct cyttsp_platform_data cyttsp_data = {
 	.wakeup = cyttsp_wakeup,
+	.vreg_configure = touch_vreg_configure,
 	.init = cyttsp_init,
 	.mt_sync = input_mt_sync,
 	/* TODO: max values should be retrieved from the firmware */
-	.maxx = CONFIG_TOUCHSCREEN_CYTTSP_MAX_X,
-	.maxy = CONFIG_TOUCHSCREEN_CYTTSP_MAX_Y,
-	.maxz = CONFIG_TOUCHSCREEN_CYTTSP_MAX_Z,
+	.maxx = 479,
+	.maxy = 853,
+	.maxz = 255,
 	.flags = 0,
 	.gen = CY_GEN3,
 	.use_st = 0,
@@ -38,7 +40,7 @@ struct cyttsp_platform_data cyttsp_data = {
 	/* change act_intrvl to customize the Active power state
 	 * scanning/processing refresh interval for Operating mode
 	 */
-	.act_intrvl = CONFIG_TOUCHSCREEN_CYTTSP_ACT_INTRVL,
+	.act_intrvl = 17,
 	/* change tch_tmout to customize the touch timeout for the
 	 * Active power state for Operating mode
 	 */
@@ -52,4 +54,3 @@ struct cyttsp_platform_data cyttsp_data = {
 	.reset = cyttsp_xres,
 	.idac_gain = 0,
 };
-

@@ -193,8 +193,6 @@
 #if defined(CONFIG_TOUCHSCREEN_CY8CTMA300_SPI) || \
 	defined(CONFIG_TOUCHSCREEN_CYTTSP_SPI)
 #define CYPRESS_TOUCH_GPIO_RESET	40
-#endif
-#ifdef CONFIG_TOUCHSCREEN_CY8CTMA300_SPI
 #define CYPRESS_TOUCH_GPIO_SPI_CS	46
 #endif
 
@@ -2007,14 +2005,6 @@ static struct platform_device mddi_auo_hvga_display_device = {
 #if defined(CONFIG_TOUCHSCREEN_CY8CTMA300_SPI) || \
 	defined(CONFIG_TOUCHSCREEN_CYTTSP_SPI) || \
 	defined(CONFIG_TOUCHSCREEN_CLEARPAD)
-static struct msm_gpio touch_gpio_config_data[] = {
-	{ GPIO_CFG(TOUCH_GPIO_IRQ, 0, GPIO_CFG_INPUT,
-		   GPIO_CFG_PULL_UP, GPIO_CFG_2MA), "touch_irq" },
-};
-#endif
-
-#if defined(CONFIG_TOUCHSCREEN_CY8CTMA300_SPI) || \
-	defined(CONFIG_TOUCHSCREEN_CLEARPAD)
 #ifdef CONFIG_MSM_UNDERVOLT_TOUCH
 #define TOUCH_VDD_VOLTAGE 2800000
 #else
@@ -2061,6 +2051,14 @@ touch_vreg_configure_err:
 	return rc;
 }
 
+static struct msm_gpio touch_gpio_config_data[] = {
+	{ GPIO_CFG(TOUCH_GPIO_IRQ, 0, GPIO_CFG_INPUT,
+		   GPIO_CFG_PULL_UP, GPIO_CFG_2MA), "touch_irq" },
+};
+#endif
+
+#if defined(CONFIG_TOUCHSCREEN_CY8CTMA300_SPI) || \
+	defined(CONFIG_TOUCHSCREEN_CLEARPAD)
 static int touch_gpio_configure(int enable)
 {
 	int rc = 0;
@@ -2244,7 +2242,6 @@ int cyttsp_key_rpc_callback(u8 data[], int size)
 	return 0;
 }
 #endif /* CONFIG_TOUCHSCREEN_CYTTSP_KEY */
-
 #endif /* CONFIG_TOUCHSCREEN_CYTTSP_SPI */
 
 #ifdef CONFIG_TOUCHSCREEN_CLEARPAD
@@ -4093,12 +4090,7 @@ out3:
 static void __init shared_vreg_on(void)
 {
 #ifdef CONFIG_TOUCHSCREEN_CYTTSP_SPI
-	gpio_set_value(46, 1);	/* SPI_CS0_N - Touch */
-#ifdef CONFIG_MSM_UNDERVOLT_TOUCH
-	vreg_helper_on("gp13", 2800); /* ldo20 - Touch */
-#else
-	vreg_helper_on("gp13", 3050); /* ldo20 - Touch */
-#endif
+	gpio_set_value(CYPRESS_TOUCH_GPIO_SPI_CS, 1);	/* SPI_CS0_N - Touch */
 #endif
 	vreg_helper_on("gp4", 2600);  /* ldo10 - BMA150, AK8975B */
 #ifdef CONFIG_FB_MSM_MDDI_NOVATEK_FWVGA
