@@ -120,6 +120,7 @@ struct cyttsp_platform_data {
 	u8 tch_tmout;   /* Active touch timeout; ms */
 	u8 lp_intrvl;   /* Low power refresh interval; ms */
 	int (*wakeup)(void);
+	int (*vreg_configure)(int);
 	int (*init)(int on_off);
 	int (*reset)(void);
 	void (*mt_sync)(struct input_dev *);

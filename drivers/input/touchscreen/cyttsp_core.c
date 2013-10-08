@@ -25,6 +25,7 @@
  * Contact Cypress Semiconductor at www.cypress.com
  *
  * Adapted for SEMC 2011 devices by Vassilis Tsogkas (tsogkas@ceid.upatras.gr)
+ * Additional changes by Michael Bestas (mikeioannina@gmail.com)
  */
 
 #include <linux/delay.h>
@@ -2100,11 +2101,22 @@ void *cyttsp_core_init(struct cyttsp_bus_ops *bus_ops, struct device *pdev)
 	ts->platform_data = pdev->platform_data;
 	ts->bus_ops = bus_ops;
 
-	if (ts->platform_data->init)
+	if (ts->platform_data->vreg_configure) {
+		retval = ts->platform_data->vreg_configure(1);
+		if (retval) {
+			dev_err(pdev, "%s: platform vreg config failed! \n",
+			__func__);
+			goto error_init;
+		}
+	}
+
+	if (ts->platform_data->init) {
 		retval = ts->platform_data->init(1);
-	if (retval) {
-		printk(KERN_ERR "%s: platform init failed! \n", __func__);
-		goto error_init;
+		if (retval) {
+			dev_err(pdev, "%s: platform init failed! \n",
+			__func__);
+			goto error_vreg_teardown;
+		}
 	}
 
 	ts->irq = gpio_to_irq(ts->platform_data->irq_gpio);
@@ -2249,6 +2261,9 @@ error_input_allocate_device:
 err_gpio_to_irq:
 	if (ts->platform_data->init)
 		ts->platform_data->init(0);
+error_vreg_teardown:
+	if (ts->platform_data->vreg_configure)
+		ts->platform_data->vreg_configure(0);
 error_init:
 	kfree(ts);
 error_alloc_data_failed:
@@ -2270,6 +2285,8 @@ void cyttsp_core_release(void *handle)
 	input_free_device(ts->input);
 	if (ts->platform_data->init)
 		ts->platform_data->init(0);
+	if (ts->platform_data->vreg_configure)
+		ts->platform_data->vreg_configure(0);
 	kfree(ts);
 }
 MODULE_LICENSE("GPL");
