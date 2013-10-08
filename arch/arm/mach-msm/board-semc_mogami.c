@@ -2006,7 +2006,7 @@ static struct platform_device mddi_auo_hvga_display_device = {
 
 static struct regulator *vreg_touch_vdd;
 
-static int touch_vreg_configure(int enable)
+int touch_vreg_configure(int enable)
 {
 	int rc = 0;
 
