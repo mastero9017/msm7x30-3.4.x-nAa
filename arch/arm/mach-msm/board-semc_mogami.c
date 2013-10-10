@@ -2056,12 +2056,20 @@ static int touch_gpio_configure(int enable)
 {
 	int rc = 0;
 
-	if (enable)
-		rc = msm_gpios_request_enable(touch_gpio_config_data,
+#ifdef CONFIG_TOUCHSCREEN_CY8CTMA300_SPI
+	msleep(10);
+#endif
+
+	if (enable) {
+		rc = msm_gpios_enable(touch_gpio_config_data,
 				ARRAY_SIZE(touch_gpio_config_data));
-	else
+#ifdef CONFIG_TOUCHSCREEN_CY8CTMA300_SPI
+                gpio_set_value(CYPRESS_TOUCH_GPIO_RESET, 1);
+#endif
+	} else {
 		msm_gpios_free(touch_gpio_config_data,
 				ARRAY_SIZE(touch_gpio_config_data));
+	}
 	return rc;
 }
 #endif
@@ -4198,6 +4206,9 @@ static void __init msm7x30_init(void)
 #endif
 	hw_id_class_init();
 	shared_vreg_on();
+#ifdef CONFIG_TOUCHSCREEN_CY8CTMA300_SPI
+	touch_gpio_configure(1);
+#endif
 
 	i2c_register_board_info(0, msm_i2c_board_info,
 			ARRAY_SIZE(msm_i2c_board_info));
