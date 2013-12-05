@@ -178,6 +178,7 @@ CONFIG_LBDAF=y
 # CONFIG_BLK_DEV_BSG is not set
 # CONFIG_BLK_DEV_BSGLIB is not set
 # CONFIG_BLK_DEV_INTEGRITY is not set
+# CONFIG_MSM_KGSL_SIMPLE_GOV is not set
 
 #
 # Partition Types
