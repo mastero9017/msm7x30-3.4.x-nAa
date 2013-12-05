@@ -139,7 +139,8 @@ static void tz_wake(struct kgsl_device *device, struct kgsl_pwrscale *pwrscale)
                 (priv->governor == TZ_GOVERNOR_ONDEMAND ||
                  priv->governor == TZ_GOVERNOR_SIMPLE))
 #else
-                priv->governor == TZ_GOVERNOR_ONDEMAND)
+                priv->governor == TZ_GOVERNOR_ONDEMAND &&
+                device->pwrctrl.restore_slumber == 0)
 #endif
 		kgsl_pwrctrl_pwrlevel_change(device,
 					device->pwrctrl.default_pwrlevel);
