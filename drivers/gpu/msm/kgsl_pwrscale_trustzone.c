@@ -31,7 +31,7 @@
 #define TZ_GOVERNOR_ONDEMAND    1
 
 #ifdef CONFIG_MSM_KGSL_SIMPLE_GOV
-#define TZ_GOVERNOR_SIMPLE        2
+#define TZ_GOVERNOR_SIMPLE 2
 #endif
 
 struct tz_priv {
