@@ -208,7 +208,7 @@
 #endif
 
 #ifdef CONFIG_FB_MSM_HDPI
-#define MSM_PMEM_SF_SIZE  0x2500000
+#define MSM_PMEM_SF_SIZE  0x1A00000
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
 #define MSM_FB_PRIM_BUF_SIZE   (864 * 480 * 4 * 3) /* 4bpp * 3 Pages */
 #else
